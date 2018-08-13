@@ -13,16 +13,12 @@ library(abind)
 library(htmltools)
 
 
-####NOTES TO SELF####
-###Use the code in single_fungi_parse_test.R to store lit codes and locations as list of dfs###
-###Then, paste the lit codes with the locations###
-
 
 files<-list.files(getwd(), pattern="*.html")
 
 
 #reads html from USDA files and makes list with all data organized in arrays
-parse_fungi_html <- function(x) {
+
   #parse html into text and pull out all paragraph tags
   html_doc <- XML::htmlTreeParse(x, useInternalNodes = T)
   html_text <- unlist(xpathApply(html_doc, '//p', xmlValue))
@@ -128,7 +124,7 @@ parse_fungi_html <- function(x) {
   locations <- gsub(locations, pattern = "Congo\\, Republic of the", replacement = "Congo")
   
   
-  if(length(locations) > 0) {
+
     
     #get list of hosts
     hosts <- str_extract(locations, ".+?\\s(?=[A-Z])")
@@ -207,23 +203,19 @@ parse_fungi_html <- function(x) {
     #cast codes into wide format, separate dataframe for each "level" of code
     codes_list <- list()
     for(i in 1:max_code_length){
-    codes_list[[i]] <- dcast(locations_aggregated, value ~ indx, value.var = paste("code", i, sep = "_"))
+      codes_list[[i]] <- dcast(locations_aggregated, value ~ indx, value.var = paste("code", i, sep = "_"))
     }
     
-    #make 3 dimensional array with first level being location/host pairs, and levels behind being associated literature codes
+    
+    ######THIS IS THE PART YOU WANT##########################################
     locations_list <- c(list(cast_locations), codes_list)
-    locations_array <- array(unlist(locations_list), dim = c(dim(locations_list[[1]]), length(locations_list)))
-    
-    
-    
-    #collect all data into list
-    return(list(nomenclature = nomenclature, basic_data = basic_data, references = lit_df, locations_hosts = locations_list))
-  
-    } else {
-    
-      return(list(nomenclature = nomenclature, basic_data = basic_data, references = lit_df, locations_hosts = "No location or host data"))
-  }
-}
+   
+    first<-locations_list[[1]]
+    second<-locations_list[[2]]
+    first<-as.matrix(first)
+    second<-as.matrix(second)
+    pasted<-as.data.frame(matrix(paste(first, second, sep=" - "), nrow=nrow(first), dimnames=dimnames(first)))
+    #########################################################################
 
 #name the list with fungi names
 fungi_data <- pblapply(files, parse_fungi_html)
@@ -294,8 +286,8 @@ map <- leaflet(data = mapping_df) %>%
 
 
 mapping_df$label<-paste(sep="<br/>", paste("Location:", mapping_df$V1, sep=" "), 
-                                            paste("Hosts:", mapping_df$hosts, sep=" "))
-                        
+                        paste("Hosts:", mapping_df$hosts, sep=" "))
+
 
 ##random stuff
 fungi_locations[which(grepl(fungi_locations, "Rica"))]
