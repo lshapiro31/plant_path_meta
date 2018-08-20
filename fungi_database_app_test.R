@@ -19,9 +19,11 @@ ui <- navbarPage(theme = shinytheme("flatly"),
   ),
   tabPanel("Map",
     sidebarLayout(
-      sidebarPanel("Some inputs and options"
+      sidebarPanel(
+        selectInput("select", label = h3("Select fungal species"), choices = names(fungi_data)
+        )
       ),
-      mainPanel("Acrosporium cyparissiae documented locations",
+      mainPanel("Documented locations",
         uiOutput("leaf")
       )
     )
@@ -43,9 +45,9 @@ server <- function(input, output) {
   })
   
   output$mymap <- renderLeaflet({
-    leaflet(data = mapping_df) %>%
+    leaflet(data = fungi_data[[input$select]][[4]]) %>%
       addTiles() %>%
-      addMarkers(~lon, ~lat, popup=mapping_df$label)
+      addMarkers(~lon, ~lat, popup=fungi_data[[input$select]][[4]]$label)
   })
 }
 
