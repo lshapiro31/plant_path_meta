@@ -16,9 +16,9 @@ fungi_data2<-fungi_data[names(fungi_data) %in% fungi_taxonomy2$organism]
 
 #extract basic data from fungi_data, add index value
 fungi_basic_data<-lapply(fungi_data2, "[[", 2)
-
+fungi_basic_data<-lapply(fungi_basic_data, function(x){mutate(x, id="1")})
 #remove entries with no basic_data
-fungi_basic_data_notempty<-fungi_basic_data2[sapply(fungi_basic_data2, nrow)>0]
+fungi_basic_data_notempty<-fungi_basic_data[sapply(fungi_basic_data, nrow)>0]
 fungi_taxonomy2<-fungi_taxonomy2[fungi_taxonomy2$organism %in% names(fungi_basic_data_notempty),]
 
 #cast basic_data into wide format, rbind into dataframe
