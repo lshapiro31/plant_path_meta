@@ -11,19 +11,45 @@ library(pbapply)
 library(leaflet)
 library(abind)
 library(htmltools)
+library(plyr)
+library(dplyr)
 
 
 ####NOTES TO SELF####
 ###Use the code in single_fungi_parse_test.R to store lit codes and locations as list of dfs###
 ###Then, paste the lit codes with the locations###
 
+#modified paste function to suppress NAs in paste
+paste5 <- function(..., sep = " ", collapse = NULL, na.rm = F) {
+  if (na.rm == F)
+    paste(..., sep = sep, collapse = collapse)
+  else
+    if (na.rm == T) {
+      paste.na <- function(x, sep) {
+        x <- gsub("^\\s+|\\s+$", "", x)
+        ret <- paste(na.omit(x), collapse = sep)
+        is.na(ret) <- ret == ""
+        return(ret)
+      }
+      df <- data.frame(..., stringsAsFactors = F)
+      ret <- apply(df, 1, FUN = function(x) paste.na(x, sep))
+      
+      if (is.null(collapse))
+        ret
+      else {
+        paste.na(ret, sep = collapse)
+      }
+    }
+}
 
+setwd("D:/R projects/plant_path_meta/fungi_html/html_data")
+refs <- read.csv("ref_GoogleScholarLinks.csv", header = T)
+geocodes <- read.csv("geocodes.csv", header = T)
 files<-list.files(getwd(), pattern="*.html")
-
+refs$date <- as.numeric(str_extract(refs$reference, "\\d{4}"))
 
 #reads html from USDA files and makes list with all data organized in arrays
 parse_fungi_html <- function(x) {
-  #parse html into text and pull out all paragraph tags
   html_doc <- XML::htmlTreeParse(x, useInternalNodes = T)
   html_text <- unlist(xpathApply(html_doc, '//p', xmlValue))
   
@@ -127,102 +153,146 @@ parse_fungi_html <- function(x) {
   locations <- gsub(locations, pattern = "Christmas Island\\, Territory of", replacement = "Christmas Island")
   locations <- gsub(locations, pattern = "Congo\\, Republic of the", replacement = "Congo")
   
+  #get list of hosts
+  hosts <- str_extract(locations, ".+?\\s(?=[A-Z])")
+  hosts <- gsub(hosts, pattern = ":", replacement = "")
   
-  if(length(locations) > 0) {
-    
-    #get list of hosts
-    hosts <- str_extract(locations, ".+?\\s(?=[A-Z])")
-    hosts <- gsub(hosts, pattern = ":", replacement = "")
-    
-    #split locations into separate columns
-    locations <- sub(".+?\\s(?=[A-Z])", "\\1", locations, perl = T)
-    locations <- strsplit(locations, "\\,(?=[A-Z]+)", perl = T)
-    max.length <- max(sapply(locations, length))
-    locations_filled <- lapply(locations, function(x) { c(x, rep(NA, max.length-length(x)))})
-    locations_df <- do.call(rbind.data.frame,locations_filled)
-    locations_df[] <- lapply(locations_df, as.character)
-    
-    #separate literature codes from location data, put into df, and clean up
-    lit_codes <- lapply(locations_df, strsplit, "-")
-    lit_codes <- lapply(lit_codes, gsub, pattern = "[^0-9 | ^,]", replacement = "")
-    lit_codes_df <- do.call(cbind.data.frame,lit_codes)
-    lit_codes_df[] <- lapply(lit_codes_df, as.character)
-    lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = ",", replacement = "")
-    lit_codes_df[] <- lapply(lit_codes_df, function(x) trimws(x, which = "both"))
-    lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = " ", replacement = ",")
-    
-    #remove codes and clean up location names
-    locations_df[] <- lapply(locations_df, gsub, pattern = ",", replacement = "")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "-", replacement = "")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "[0-9]", replacement = "")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "\\scard", replacement = "")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Petr\\.\\)", replacement = "")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Brunei Darussalam", replacement = "Brunei")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Leporinum Australia", replacement = "Australia")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Leporinum New Zealand", replacement = "New Zealand")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Columbia", replacement = "Colombia")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "District of Colombia", replacement = "District of Columbia")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Cote d''Ivoire", replacement = "Cote d'Ivoire")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Faeroe", replacement = "Faroe")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "GuineaBissau", replacement = "Guinea")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Himalaya", replacement = "Himalayas")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Himalayass", replacement = "Himalayas")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Italy Sicily", replacement = "Sicily")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Malay Peninsula", replacement = "Malaysia")
-    locations_df[] <- lapply(locations_df, gsub, pattern = "Russia Siberia", replacement = "Siberia")
-    
-    
-    locations_df[] <- lapply(locations_df, function(x) str_trim(x, side = "both"))
-    
-    #combine location and codes into one dataframe and add host data
-    colnames(locations_df) <- paste0("location", 1:ncol(locations_df))
-    colnames(lit_codes_df) <- paste0("code", 1:ncol(locations_df))
-    master_df <- cbind(locations_df, lit_codes_df)
-    master_df$host <- hosts
-    master_df <- master_df[, c(ncol(master_df), 1:(ncol(master_df)-1))]
-    
-    #melt locations/codes data
-    locations_molten <- melt(master_df, id = "host")
-    locations_molten2 <- locations_molten[grep("code", locations_molten$variable), ]
-    locations_molten <- locations_molten[grep("location", locations_molten$variable), ]
-    locations_molten$code <- locations_molten2$value
-    locations_molten <- locations_molten[, c(1, 3, 4)]
-    
-    #combine lit codes into one column for each unique host/location pair
-    locations_aggregated <- aggregate(data = locations_molten, code ~ host + value, paste, collapse = ",")
-    
-    #add numerical index for how many times each location appears
-    setDT(locations_aggregated)
-    locations_aggregated[, indx:=1:.N, by = value]
-    setDF(locations_aggregated)
-    
-    #split multiple lit codes into separate columns
-    max_code <- strsplit(locations_aggregated$code, ",")
+  #split locations into separate columns
+  locations <- sub(".+?\\s(?=[A-Z])", "\\1", locations, perl = T)
+  locations <- strsplit(locations, "\\,(?=[A-Z]+)", perl = T)
+  max.length <- max(sapply(locations, length))
+  locations_filled <- lapply(locations, function(x) { c(x, rep(NA, max.length-length(x)))})
+  locations_df <- do.call(rbind.data.frame,locations_filled)
+  locations_df[] <- lapply(locations_df, as.character)
+  
+  #separate literature codes from location data, put into df, and clean up
+  lit_codes <- lapply(locations_df, strsplit, "-")
+  lit_codes <- lapply(lit_codes, gsub, pattern = "[^0-9 | ^,]", replacement = "")
+  lit_codes_df <- do.call(cbind.data.frame,lit_codes)
+  lit_codes_df[] <- lapply(lit_codes_df, as.character)
+  lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = ",", replacement = "")
+  lit_codes_df[] <- lapply(lit_codes_df, function(x) trimws(x, which = "both"))
+  lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = " ", replacement = ",")
+  colnames(lit_codes_df) <- paste0("code", 1:ncol(locations_df))
+  
+  #make list for Gscholar reference links
+  links <- list()
+  #For each host, take codes, separate into columns, replace with link from lookup table (refs) and then paste back together
+  for(i in 1:ncol(lit_codes_df)){
+    links[[i]] <- data.frame(original_code = lit_codes_df[,i], stringsAsFactors = F)
+    max_code <- strsplit(links[[i]][,1], ",")
     max_code_length <- max(lengths(max_code))
-    locations_aggregated <- separate(locations_aggregated, code, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
-    
-    #cast locations into wide format
-    cast_locations <- dcast(locations_aggregated, value ~ indx, value.var = "host")
-    
-    #cast codes into wide format, separate dataframe for each "level" of code
-    codes_list <- list()
-    for(i in 1:max_code_length){
-    codes_list[[i]] <- dcast(locations_aggregated, value ~ indx, value.var = paste("code", i, sep = "_"))
+    links[[i]] <- separate(links[[i]], 1, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
+    links[[i]] <- lapply(links[[i]], as.numeric)
+    links[[i]][] <- lapply(links[[i]], function(x) refs$link[match(x, refs$code)])
+    paste_args <- list("x" = links[[i]], "sep" = "###", "na.rm" = T)
+    links[[i]]$new_link <- do.call(paste5, paste_args)
+    links[[i]] <- data.frame(i = links[[i]]$new_link, stringsAsFactors = F)
     }
-    
-    #make 3 dimensional array with first level being location/host pairs, and levels behind being associated literature codes
-    locations_list <- c(list(cast_locations), codes_list)
-    locations_array <- array(unlist(locations_list), dim = c(dim(locations_list[[1]]), length(locations_list)))
-    
-    
-    
-    #collect all data into list
-    return(list(nomenclature = nomenclature, basic_data = basic_data, references = lit_df, locations_hosts = locations_list))
+  #bind links into one dataframe again
+  link_df <- bind_cols(links)
   
-    } else {
-    
-      return(list(nomenclature = nomenclature, basic_data = basic_data, references = lit_df, locations_hosts = "No location or host data"))
+  #get dataframes with the oldest year for each citation
+  dates <- list()
+  for(i in 1:ncol(lit_codes_df)){
+    dates[[i]] <- data.frame(original_code = lit_codes_df[,i], stringsAsFactors = F)
+    max_code <- strsplit(dates[[i]][,1], ",")
+    max_code_length <- max(lengths(max_code))
+    dates[[i]] <- separate(dates[[i]], 1, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
+    dates[[i]][] <- lapply(dates[[i]], as.numeric)
+    dates[[i]][] <- lapply(dates[[i]], function(x) refs$date[match(x, refs$code)])
+    dates[[i]] <- dates[[i]] %>%
+      mutate(min=pmap(dates[[i]], min, na.rm = T))
+    dates[[i]]$min <- data.frame(date=unlist(dates[[i]]$min))
+    dates[[i]] <- data.frame(i = dates[[i]]$min, stringsAsFactors = F)
+    is.na(dates[[i]]) <- sapply(dates[[i]], is.infinite)
   }
+  #bind together dates into dataframe with oldest date for each host/location combo
+  date_df <- bind_cols(dates)
+  
+  #remove codes and clean up location names
+  locations_df[] <- lapply(locations_df, gsub, pattern = ",", replacement = "")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "-", replacement = "")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "[0-9]", replacement = "")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "\\scard", replacement = "")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Petr\\.\\)", replacement = "")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Brunei Darussalam", replacement = "Brunei")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Leporinum Australia", replacement = "Australia")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Leporinum New Zealand", replacement = "New Zealand")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Columbia", replacement = "Colombia")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "District of Colombia", replacement = "District of Columbia")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Cote d''Ivoire", replacement = "Cote d'Ivoire")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Faeroe", replacement = "Faroe")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "GuineaBissau", replacement = "Guinea")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Himalaya", replacement = "Himalayas")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Himalayass", replacement = "Himalayas")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Italy Sicily", replacement = "Sicily")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Malay Peninsula", replacement = "Malaysia")
+  locations_df[] <- lapply(locations_df, gsub, pattern = "Russia Siberia", replacement = "Siberia")
+  
+  locations_df[] <- lapply(locations_df, function(x) str_trim(x, side = "both"))
+  
+  #combine location and codes into one dataframe and add host data
+  colnames(locations_df) <- paste0("location", 1:ncol(locations_df))
+  colnames(link_df) <- paste0("code", 1:ncol(locations_df))
+  master_df <- cbind(locations_df, link_df, date_df)
+  master_df$host <- hosts
+  master_df <- master_df[, c(ncol(master_df), 1:(ncol(master_df)-1))]
+  
+  #melt locations/codes data
+  locations_molten <- melt(master_df, id = "host")
+  locations_molten2 <- locations_molten[grep("code", locations_molten$variable), ]
+  locations_molten3 <- locations_molten[grep("date", locations_molten$variable), ]
+  locations_molten <- locations_molten[grep("location", locations_molten$variable), ]
+  locations_molten$code <- locations_molten2$value
+  locations_molten$date <- locations_molten3$value
+  locations_molten <- locations_molten[, -2]
+  
+  #combine lit codes into one column for each unique host/location pair
+  locations_aggregated <- aggregate(data = locations_molten, code ~ host + value + date, paste, collapse = "###")
+  
+  #add numerical index for how many times each location appears
+  setDT(locations_aggregated)
+  locations_aggregated[, indx:=1:.N, by = value]
+  setDF(locations_aggregated)
+  
+  #cast locations, codes, dates into wide format
+  cast_locations <- dcast(locations_aggregated, value ~ indx, value.var = "host")
+  cast_codes <- dcast(locations_aggregated, value ~ indx, value.var = "code")
+  cast_dates <- dcast(locations_aggregated, value ~ indx, value.var = "date")
+  cast_codes[] <- lapply(cast_codes, gsub, pattern = "###", replacement = ", ")
+  
+  #get only oldest date
+  cast_dates <- cast_dates %>%
+    mutate(min=as.numeric(unlist(pmap(cast_dates, min, na.rm = T)))) %>%
+    select(min) 
+  
+  #convert to matrix so we can paste element-by-element
+  locations_matrix <- as.matrix(cast_locations)
+  codes_matrix <- as.matrix(cast_codes)
+  
+  #paste locations dataframe and reference links dataframe element by element
+  locations_codes <- as.data.frame(matrix(paste(locations_matrix, codes_matrix, sep=" - "), nrow=nrow(locations_matrix), dimnames=dimnames(locations_matrix)), stringsAsFactors = F)
+  locations_codes[] <- lapply(locations_codes, gsub, pattern = " - NA", replacement="")
+  
+  #merge locations data with reference links data
+  cast_locations[ ,2:ncol(cast_locations)] <- locations_codes[ ,2:ncol(locations_codes)]
+  
+  #take locations and host/reference data, add geocodes, format labels for mapping
+  mapping_df <- cast_locations
+  colnames(mapping_df) <- c("location", paste("host", 1:(ncol(mapping_df)-1), sep = "_"))
+  mapping_df <- merge(mapping_df, geocodes, by = "location")
+  paste_args <- list("x" = mapping_df[,2:(ncol(mapping_df)-2)], "sep" = "; ", "na.rm" = T)
+  mapping_df$hosts <- do.call(paste5, paste_args)
+  mapping_df$hosts <- gsub("; NA", "", mapping_df$hosts) 
+  mapping_df$label <- paste(sep = "<br/>", paste("Location:", mapping_df$location, sep = " "), 
+                            paste("Hosts:", mapping_df$hosts, sep = " "))
+  mapping_df <- mapping_df[, -c(2:(ncol(mapping_df)-4))]
+  mapping_df$date <- cast_dates$min
+    
+  #collect all data into list
+  return(list(nomenclature = nomenclature, basic_data = basic_data, references = lit_df, locations_hosts_data = mapping_df))
+  
 }
 
 #name the list with fungi names
@@ -237,6 +307,12 @@ locations<-unlist(locations, use.names = F)
 locations<-unique(locations)
 locations<-data.frame(location=locations, stringsAsFactors = F)
 
+#get all references
+fungi_refs<-lapply(fungi_data, "[[", 3)
+refs<-bind_rows(fungi_refs)
+refs<-unique(refs)
+refs$code<-as.numeric(refs$code)
+refs<-arrange(refs, code)
 
 #dummy example
 test<-fungi_data[[1]]
