@@ -13,7 +13,7 @@ library(abind)
 library(htmltools)
 library(plyr)
 library(dplyr)
-
+library(purrr)
 
 ####NOTES TO SELF####
 ###Use the code in single_fungi_parse_test.R to store lit codes and locations as list of dfs###
