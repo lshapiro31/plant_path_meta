@@ -11,6 +11,7 @@ library(pbapply)
 library(leaflet)
 library(abind)
 library(htmltools)
+library(purrr)
 
 
 
@@ -146,6 +147,41 @@ files<-list.files(getwd(), pattern="*.html")
     lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = ",", replacement = "")
     lit_codes_df[] <- lapply(lit_codes_df, function(x) trimws(x, which = "both"))
     lit_codes_df[] <- lapply(lit_codes_df, gsub, pattern = " ", replacement = ",")
+    colnames(lit_codes_df) <- paste0("code", 1:ncol(locations_df))
+    
+    links <- list()
+ 
+    for(i in 1:ncol(lit_codes_df)){
+      links[[i]] <- data.frame(original_code = lit_codes_df[,i], stringsAsFactors = F)
+      max_code <- strsplit(links[[i]][,1], ",")
+      max_code_length <- max(lengths(max_code))
+      links[[i]] <- separate(links[[i]], 1, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
+      links[[i]] <- lapply(links[[i]], as.numeric)
+      links[[i]][] <- lapply(links[[i]], function(x) refs$link[match(x, refs$code)])
+      paste_args <- list("x" = links[[i]], "sep" = "###", "na.rm" = T)
+      links[[i]]$new_link <- do.call(paste5, paste_args)
+      links[[i]] <- data.frame(i = links[[i]]$new_link, stringsAsFactors = F)
+    }
+    
+    link_df <- bind_cols(links)
+    
+    dates <- list()
+    
+    for(i in 1:ncol(lit_codes_df)){
+      dates[[i]] <- data.frame(original_code = lit_codes_df[,i], stringsAsFactors = F)
+      max_code <- strsplit(dates[[i]][,1], ",")
+      max_code_length <- max(lengths(max_code))
+      dates[[i]] <- separate(dates[[i]], 1, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
+      dates[[i]][] <- lapply(dates[[i]], as.numeric)
+      dates[[i]][] <- lapply(dates[[i]], function(x) refs$date[match(x, refs$code)])
+      dates[[i]] <- dates[[i]] %>%
+        mutate(min=pmap(dates[[i]], min, na.rm = T))
+      dates[[i]]$min <- data.frame(date=unlist(dates[[i]]$min))
+      dates[[i]] <- data.frame(i = dates[[i]]$min, stringsAsFactors = F)
+      is.na(dates[[i]]) <- sapply(dates[[i]], is.infinite)
+    }
+    
+    date_df <- bind_cols(dates)
     
     #remove codes and clean up location names
     locations_df[] <- lapply(locations_df, gsub, pattern = ",", replacement = "")
@@ -170,6 +206,70 @@ files<-list.files(getwd(), pattern="*.html")
     
     locations_df[] <- lapply(locations_df, function(x) str_trim(x, side = "both"))
     
+    
+    #combine location and codes into one dataframe and add host data
+    colnames(locations_df) <- paste0("location", 1:ncol(locations_df))
+    colnames(link_df) <- paste0("code", 1:ncol(locations_df))
+    master_df <- cbind(locations_df, link_df, date_df)
+    master_df$host <- hosts
+    master_df <- master_df[, c(ncol(master_df), 1:(ncol(master_df)-1))]
+    
+    #melt locations/codes data
+    locations_molten <- melt(master_df, id = "host")
+    locations_molten2 <- locations_molten[grep("code", locations_molten$variable), ]
+    locations_molten3 <- locations_molten[grep("date", locations_molten$variable), ]
+    locations_molten <- locations_molten[grep("location", locations_molten$variable), ]
+    locations_molten$code <- locations_molten2$value
+    locations_molten$date <- locations_molten3$value
+    locations_molten <- locations_molten[, -2]
+    
+    #combine lit codes into one column for each unique host/location pair
+    locations_aggregated <- aggregate(data = locations_molten, code ~ host + value + date, paste, collapse = "###")
+    
+    #add numerical index for how many times each location appears
+    setDT(locations_aggregated)
+    locations_aggregated[, indx:=1:.N, by = value]
+    setDF(locations_aggregated)
+    
+    #cast locations into wide format
+    cast_locations <- dcast(locations_aggregated, value ~ indx, value.var = "host")
+    cast_codes <- dcast(locations_aggregated, value ~ indx, value.var = "code")
+    cast_dates <- dcast(locations_aggregated, value ~ indx, value.var = "date")
+    cast_codes[] <- lapply(cast_codes, gsub, pattern = "###", replacement = ", ")
+    
+    cast_dates <- cast_dates %>%
+      mutate(min=as.numeric(unlist(pmap(cast_dates, min, na.rm = T)))) %>%
+      select(min) 
+    
+    locations_matrix <- as.matrix(cast_locations)
+    codes_matrix <- as.matrix(cast_codes)
+    
+    locations_codes <- as.data.frame(matrix(paste(locations_matrix, codes_matrix, sep=" - "), nrow=nrow(locations_matrix), dimnames=dimnames(locations_matrix)), stringsAsFactors = F)
+    locations_codes[] <- lapply(locations_codes, gsub, pattern = " - NA", replacement="")
+    
+    cast_locations[ ,2:ncol(cast_locations)] <- locations_codes[ ,2:ncol(locations_codes)]
+    
+    mapping_df <- cast_locations
+    colnames(mapping_df) <- c("location", paste("host", 1:(ncol(mapping_df)-1), sep = "_"))
+    mapping_df <- merge(mapping_df, geocodes, by = "location")
+    paste_args <- list("x" = mapping_df[,2:(ncol(mapping_df)-2)], "sep" = "; ", "na.rm" = T)
+    mapping_df$hosts <- do.call(paste5, paste_args)
+    mapping_df$hosts <- gsub("; NA", "", mapping_df$hosts) 
+    mapping_df$label <- paste(sep = "<br/>", paste("Location:", mapping_df$location, sep = " "), 
+                              paste("Hosts:", mapping_df$hosts, sep = " "))
+    mapping_df <- mapping_df[, -c(2:(ncol(mapping_df)-4))]
+    mapping_df$date <- cast_dates$min
+    
+  
+    
+    
+    
+    
+    
+    
+      
+    
+    ################################################################
     #combine location and codes into one dataframe and add host data
     colnames(locations_df) <- paste0("location", 1:ncol(locations_df))
     colnames(lit_codes_df) <- paste0("code", 1:ncol(locations_df))
@@ -192,19 +292,28 @@ files<-list.files(getwd(), pattern="*.html")
     locations_aggregated[, indx:=1:.N, by = value]
     setDF(locations_aggregated)
     
-    #split multiple lit codes into separate columns
-    max_code <- strsplit(locations_aggregated$code, ",")
-    max_code_length <- max(lengths(max_code))
-    locations_aggregated <- separate(locations_aggregated, code, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
-    
     #cast locations into wide format
     cast_locations <- dcast(locations_aggregated, value ~ indx, value.var = "host")
+    cast_codes <- dcast(locations_aggregated, value ~ indx, value.var = "code") # ***THIS IS WHERE YOU STOPPED*****
+    cast_codes[] <- lapply(cast_codes, gsub, pattern = ",", replacement = ", ")
     
-    #cast codes into wide format, separate dataframe for each "level" of code
-    codes_list <- list()
-    for(i in 1:max_code_length){
-      codes_list[[i]] <- dcast(locations_aggregated, value ~ indx, value.var = paste("code", i, sep = "_"))
-    }
+    locations_matrix <- as.matrix(cast_locations)
+    codes_matrix <- as.matrix(cast_codes)
+    
+    locations_codes <- as.data.frame(matrix(paste(locations_matrix, codes_matrix, sep=" - "), nrow=nrow(locations_matrix), dimnames=dimnames(locations_matrix)), stringsAsFactors = F)
+    locations_codes[] <- lapply(locations_codes, gsub, pattern = " - NA", replacement="")
+    
+    cast_locations[ ,2:ncol(cast_locations)] <- locations_codes[ ,2:ncol(locations_codes)]
+    
+    mapping_df <- cast_locations
+    colnames(mapping_df) <- c("location", paste("host", 1:(ncol(mapping_df)-1), sep = "_"))
+    mapping_df <- merge(mapping_df, geocodes, by = "location")
+    paste_args <- c(mapping_df[,2:(ncol(mapping_df)-4)], sep = "; ")
+    mapping_df$hosts <- do.call(paste, paste_args)
+    mapping_df$hosts <- gsub("; NA", "", mapping_df$hosts) 
+    mapping_df$label <- paste(sep = "<br/>", paste("Location:", mapping_df$location, sep = " "), 
+                            paste("Hosts:", mapping_df$hosts, sep = " "))
+    mapping_df <- mapping_df[, -c(2:(ncol(mapping_df)-4))]
     
     
     ######THIS IS THE PART YOU WANT##########################################
@@ -212,9 +321,16 @@ files<-list.files(getwd(), pattern="*.html")
    
     first<-locations_list[[1]]
     second<-locations_list[[2]]
+    third<-locations_list[[3]]
+    
     first<-as.matrix(first)
     second<-as.matrix(second)
-    pasted<-as.data.frame(matrix(paste(first, second, sep=" - "), nrow=nrow(first), dimnames=dimnames(first)))
+    third<-as.matrix(third)
+    
+    pasted<-as.data.frame(matrix(paste(second, third, sep=", "), nrow=nrow(second), dimnames=dimnames(second)))
+    pasted[] <- lapply(pasted, gsub, pattern = ", NA", replacement="")
+    
+    pasted2<-as.data.frame(matrix(paste(first, second, sep=" - "), nrow=nrow(first), dimnames=dimnames(first)))
     #########################################################################
 
 #name the list with fungi names
@@ -228,7 +344,7 @@ locations<-lapply(fungi_locations, '[', ,1,1)
 locations<-unlist(locations, use.names = F)
 locations<-unique(locations)
 locations<-data.frame(location=locations, stringsAsFactors = F)
-
+mapping_df$hosts<-do.call(paste5, df_args)
 
 #dummy example
 test<-fungi_data[[1]]
@@ -271,7 +387,7 @@ paste5 <- function(..., sep = " ", collapse = NULL, na.rm = F) {
 mapping_df<-data.frame(test_bound_array[,,1], stringsAsFactors = F)
 mapping_df$lon<-as.numeric(mapping_df$lon)
 mapping_df$lat<-as.numeric(mapping_df$lat)
-df_args<-c(mapping_df[,2:(ncol(mapping_df)-2)], sep=", ", na.rm=T)
+df_args<-c(mapping_df[,2:(ncol(mapping_df)-2)], sep="; ", na.rm=T)
 mapping_df$hosts<-do.call(paste5, df_args)
 
 mapping_df$label<-paste(sep="<br/>", paste("Location:", mapping_df$V1, sep=" "), 
@@ -309,6 +425,17 @@ map <- leaflet(data = geocodes) %>%
   addLabelOnlyMarkers(~lon, ~lat, label = ~as.character(location), labelOptions = labelOptions(noHide = T, direction = 'top'))
 
 
+#split multiple lit codes into separate columns
+max_code <- strsplit(locations_aggregated$code, ",")
+max_code_length <- max(lengths(max_code))
+locations_aggregated <- separate(locations_aggregated, code, into = paste("code", 1:max_code_length, sep = "_"), sep = ",", convert = T)
 
+#cast codes into wide format, separate dataframe for each "level" of code
+codes_list <- list()
+for(i in 1:max_code_length){
+  codes_list[[i]] <- dcast(locations_aggregated, value ~ indx, value.var = paste("code", i, sep = "_"))
+}
 
-
+leaflet(data = mapping_df) %>%
+  addTiles() %>%
+  addMarkers(~lon, ~lat, popup=mapping_df$label)
