@@ -4,6 +4,7 @@ library(shinythemes)
 
 ui <- navbarPage(theme = shinytheme("flatly"),
                  title = "Example Fungi Database",
+                 #Database tab
                  tabPanel("Database",
                           fluidRow(
                             column(1,
@@ -17,11 +18,14 @@ ui <- navbarPage(theme = shinytheme("flatly"),
                             )
                           )
                  ),
+                 #Map tab
                  tabPanel("Map",
                           sidebarLayout(
                             sidebarPanel(
+                              #user selects species to show data for
                               selectInput("select", label = h3("Select fungal species"), choices = names(fungi_data)
                               ),
+                              #user selects date range to show data for
                               sliderInput("slider", label= h3("Select date"), min = 1800, max=2020, value=2000)
                             ),
                             mainPanel("Documented locations",
@@ -33,7 +37,7 @@ ui <- navbarPage(theme = shinytheme("flatly"),
 
 server <- function(input, output, session) {
   
-  # choose columns to display
+  #Output datatable with user selected columns
   output$mytable1 <- DT::renderDataTable({
     DT::datatable(fungi_for_DT[, input$show_vars, drop = FALSE], extensions = "Buttons",
                   style = "bootstrap", escape = F, rownames = F, filter = "top", options = list(
@@ -41,15 +45,18 @@ server <- function(input, output, session) {
                   ))
   })
   
+  #define map size 
   output$leaf <- renderUI({
     leafletOutput("mymap", width = "100%", height = "800")
   })
   
+  #define first map view on page
   output$mymap <- renderLeaflet({
     leaflet() %>%
-      addTiles() 
+      addProviderTiles(providers$CartoDB.Positron)
   })
   
+  #change slider dates based on selected species date range
   observe({
     my_data <- fungi_data[[input$select]][[4]]
     
@@ -58,13 +65,14 @@ server <- function(input, output, session) {
                       value=max(my_data$date))
   })
   
+  #change data for markers when user changes selected species
   marker_data <- reactive({
     subset_data <- fungi_data[[input$select]][[4]]
-    subset_data <- subset_data[subset_data$date<=input$slider, ]
+    subset_data <- subset_data[date<=input$slider, ]
     return(subset_data)
   })
-
   
+  #update markers when user changes species or date
   observe({
     leafletProxy("mymap", data = marker_data()) %>%
       clearPopups() %>% 

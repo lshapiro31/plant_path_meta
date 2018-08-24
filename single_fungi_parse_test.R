@@ -12,11 +12,13 @@ library(leaflet)
 library(abind)
 library(htmltools)
 library(purrr)
+library(plyr)
+library(dplyr)
 
 
 
 files<-list.files(getwd(), pattern="*.html")
-
+x<-files[[1]]
 
 #reads html from USDA files and makes list with all data organized in arrays
 
@@ -25,9 +27,10 @@ files<-list.files(getwd(), pattern="*.html")
   html_text <- unlist(xpathApply(html_doc, '//p', xmlValue))
   
   #get basic data
-  basic_data <- data.frame(html_text[grepl("Distribution:|Substrate:|Disease Note:|Host:", html_text)])
+  basic_data <- data.table(html_text[grepl("Distribution:|Substrate:|Disease Note:|Host:", html_text)])
   basic_data <- separate(basic_data, 1, into = c("attribute", "value"), sep = ":")
-  basic_data$value <- gsub(basic_data$value, pattern = "(\\.[^.]*)$", replacement = "")
+  #basic_data$value <- gsub(basic_data$value, pattern = "(\\.[^.]*)$", replacement = "")
+  basic_data[, value := gsub(basic_data$value, pattern = "(\\.[^.]*)$", replacement = "")]
   
   #get references and associated codes and store in df
   lit <- html_text[which(grepl("Literature database", html_text)) : which(grepl("Specimens database", html_text))]
@@ -35,8 +38,11 @@ files<-list.files(getwd(), pattern="*.html")
   lit <- strsplit(lit, "\\s(?=\\S*$)", perl=T)
   lit_df <- do.call(rbind.data.frame, lit)
   colnames(lit_df) <- c("reference", "code")
-  lit_df$code <- gsub("[()]", "", lit_df$code)
-  lit_df$reference <- as.character(lit_df$reference)
+  setDT(lit_df)
+  #lit_df$code <- gsub("[()]", "", lit_df$code)
+  #lit_df$reference <- as.character(lit_df$reference)
+  lit_df[, code := gsub("[()]", "", lit_df$code)]
+  lit_df[, reference := as.character(lit_df$reference)]
   
   #get nomenclature data and clean up synonyms
   html_text2 <- html_text[-c(1:4)]
@@ -49,7 +55,6 @@ files<-list.files(getwd(), pattern="*.html")
   #get location information from html text and remove empty entries
   locations <- html_text2[(which(grepl("Fungus-Host", html_text2))) : which(grepl("Literature database", html_text2))]
   locations <- locations[-c(1, length(locations), length(locations)-1)]
-  
   locations <- locations[-(grep("\r\n\t\t\t", locations))]
   
   locations <- gsub(locations, pattern = "\\(([^\\)]+)\\)", replacement = "")
@@ -117,16 +122,11 @@ files<-list.files(getwd(), pattern="*.html")
   locations <- gsub(locations, pattern = "Java", replacement = "Indonesia Java")
   locations <- gsub(locations, pattern = "Indonesia Indonesia Java", replacement = "Indonesia Java")
   locations <- gsub(locations, pattern = "North North Dakota", replacement = "North Dakota")
-  
-  
   locations <- gsub(locations, pattern = "Congo\\, Democratic Republic of the", replacement = "Congo")
   locations <- gsub(locations, pattern = "Georgia\\, Republic of", replacement = "Republic of Georgia")
   locations <- gsub(locations, pattern = "Christmas Island\\, Territory of", replacement = "Christmas Island")
   locations <- gsub(locations, pattern = "Congo\\, Republic of the", replacement = "Congo")
   
-  
-
-    
     #get list of hosts
     hosts <- str_extract(locations, ".+?\\s(?=[A-Z])")
     hosts <- gsub(hosts, pattern = ":", replacement = "")
@@ -137,6 +137,7 @@ files<-list.files(getwd(), pattern="*.html")
     max.length <- max(sapply(locations, length))
     locations_filled <- lapply(locations, function(x) { c(x, rep(NA, max.length-length(x)))})
     locations_df <- do.call(rbind.data.frame,locations_filled)
+    setDT(locations_df)
     locations_df[] <- lapply(locations_df, as.character)
     
     #separate literature codes from location data, put into df, and clean up
@@ -202,8 +203,6 @@ files<-list.files(getwd(), pattern="*.html")
     locations_df[] <- lapply(locations_df, gsub, pattern = "Italy Sicily", replacement = "Sicily")
     locations_df[] <- lapply(locations_df, gsub, pattern = "Malay Peninsula", replacement = "Malaysia")
     locations_df[] <- lapply(locations_df, gsub, pattern = "Russia Siberia", replacement = "Siberia")
-    
-    
     locations_df[] <- lapply(locations_df, function(x) str_trim(x, side = "both"))
     
     
@@ -211,16 +210,21 @@ files<-list.files(getwd(), pattern="*.html")
     colnames(locations_df) <- paste0("location", 1:ncol(locations_df))
     colnames(link_df) <- paste0("code", 1:ncol(locations_df))
     master_df <- cbind(locations_df, link_df, date_df)
-    master_df$host <- hosts
-    master_df <- master_df[, c(ncol(master_df), 1:(ncol(master_df)-1))]
+    setDT(master_df)
+    #master_df$host <- hosts
+    master_df[, host := hosts]
+    #master_df <- master_df[, c(ncol(master_df), 1:(ncol(master_df)-1))]
+    master_df[]
     
     #melt locations/codes data
     locations_molten <- melt(master_df, id = "host")
     locations_molten2 <- locations_molten[grep("code", locations_molten$variable), ]
     locations_molten3 <- locations_molten[grep("date", locations_molten$variable), ]
     locations_molten <- locations_molten[grep("location", locations_molten$variable), ]
-    locations_molten$code <- locations_molten2$value
-    locations_molten$date <- locations_molten3$value
+    #locations_molten$code <- locations_molten2$value
+    #locations_molten$date <- locations_molten3$value
+    locations_molten[, code := locations_molten2$value]
+    locations_molten[, date := locations_molten3$value]
     locations_molten <- locations_molten[, -2]
     
     #combine lit codes into one column for each unique host/location pair
@@ -228,13 +232,12 @@ files<-list.files(getwd(), pattern="*.html")
     
     #add numerical index for how many times each location appears
     setDT(locations_aggregated)
-    locations_aggregated[, indx:=1:.N, by = value]
-    setDF(locations_aggregated)
+    locations_aggregated[, indx := 1:.N, by = value]
     
     #cast locations into wide format
-    cast_locations <- dcast(locations_aggregated, value ~ indx, value.var = "host")
-    cast_codes <- dcast(locations_aggregated, value ~ indx, value.var = "code")
-    cast_dates <- dcast(locations_aggregated, value ~ indx, value.var = "date")
+    cast_locations <- data.table::dcast(locations_aggregated, value ~ indx, value.var = "host")
+    cast_codes <- data.table::dcast(locations_aggregated, value ~ indx, value.var = "code")
+    cast_dates <- data.table::dcast(locations_aggregated, value ~ indx, value.var = "date")
     cast_codes[] <- lapply(cast_codes, gsub, pattern = "###", replacement = ", ")
     
     cast_dates <- cast_dates %>%
@@ -244,7 +247,7 @@ files<-list.files(getwd(), pattern="*.html")
     locations_matrix <- as.matrix(cast_locations)
     codes_matrix <- as.matrix(cast_codes)
     
-    locations_codes <- as.data.frame(matrix(paste(locations_matrix, codes_matrix, sep=" - "), nrow=nrow(locations_matrix), dimnames=dimnames(locations_matrix)), stringsAsFactors = F)
+    locations_codes <- as.data.table(matrix(paste(locations_matrix, codes_matrix, sep=" - "), nrow=nrow(locations_matrix), dimnames=dimnames(locations_matrix)), stringsAsFactors = F)
     locations_codes[] <- lapply(locations_codes, gsub, pattern = " - NA", replacement="")
     
     cast_locations[ ,2:ncol(cast_locations)] <- locations_codes[ ,2:ncol(locations_codes)]
@@ -257,9 +260,9 @@ files<-list.files(getwd(), pattern="*.html")
     mapping_df$hosts <- gsub("; NA", "", mapping_df$hosts) 
     mapping_df$label <- paste(sep = "<br/>", paste("Location:", mapping_df$location, sep = " "), 
                               paste("Hosts:", mapping_df$hosts, sep = " "))
-    mapping_df <- mapping_df[, -c(2:(ncol(mapping_df)-4))]
-    mapping_df$date <- cast_dates$min
-    
+    mapping_df <- mapping_df[, -(2:(ncol(mapping_df)-4))]
+    #mapping_df$date <- cast_dates$min
+    mapping_df[, date := cast_dates$min]
   
     
     
@@ -439,3 +442,33 @@ for(i in 1:max_code_length){
 leaflet(data = mapping_df) %>%
   addTiles() %>%
   addMarkers(~lon, ~lat, popup=mapping_df$label)
+
+
+##trying to compress gsubs--didn't work
+patterns <- c("\\(([^\\)]+)\\)", "\\*", ";\\s", "ontario", "Abyssinics", "Andreana", "Arborescens", "Aristata",
+              "Basilaris", "Baumannii", "Berberis Ilicifolia", "Briotii", "Canaertii", "Chia", "Cicadellidae", 
+              "Condensata", "Conspicuus", "Cordyluridae:", "Densa", "Diptera", "Dregeanus", "Elegantissima", 
+              "Glabrata", "Glauca", "Globosa", "Grandiflora", "Homoptera", "Hymenoptera", "Islands", "Japonicus:",
+              "Japonicus", "Lalandei", "Leporinum", "Longipinnatus", "Mantica", "Pteridophyta", "Pubens", "Pyramidalis", 
+              "Recurvifolia", "Rotundifolia", "Rough", "Spp", "Squarrosa :", "Suffruticosa", "Thunbergii", "Tripartita", 
+              "Vittatum", "Perennis", "Rica", "USSR", "South Africa Unknown", "Czechoslovakia", "Dakota", 
+              "Pacific islands", "Northwestern States", "Southwestern States", "Tropical America", "Jersey", 
+              "Zambia zim", "Gulf states", "Java", "Congo\\, Democratic Republic of the", "Georgia\\, Republic of", 
+              "Christmas Island\\, Territory of", "Congo\\, Republic of the")
+replacements <- c("", "", ",", "Ontario", "abyssinics", "andreana", "arborescens", "aristata", "basilaris", 
+                  "baumannii", "berberis ilicifolia", "briotii", "canaertii", "chia", "cicadellidae", "condensata", 
+                  "conspicuus", "cordyluridae", "densa", "diptera", "dregeanus", "elegantissima", "glabrata", 
+                  "glauca", "globosa", "grandiflora", "homoptera", "hymenoptera", "islands", "japonicus", 
+                  "japonicus", "lalandei", "Leporinum", "longipinnatus", "mantica", "pteridophyta", "pubens",
+                  "pyramidalis", "recurvifolia", "rotundifolia", "rough", "spp", "squarrosa", "suffruticosa", 
+                  "thunbergii", "tripartita", "vittatum", "perennis", "Costa Rica", "Poland", "South Africa", 
+                  "Czech Republic", "North Dakota", "Polynesia", "Pacific Northwest States", "Southwest United States", 
+                  "Central America", "New Jersey", "Zambia", "United States Gulf Coast", "Indonesia Java", 
+                  "Congo", "Republic of Georgia", "Christmas Island", "Congo")
+
+locations <- str_replace_all(locations, patterns, replacements)
+
+locations <- gsub(locations, pattern = "Costa Costa Rica", replacement = "Costa Rica")
+locations <- gsub(locations, pattern = "New New Jersey", replacement = "New Jersey")
+locations <- gsub(locations, pattern = "Indonesia Indonesia Java", replacement = "Indonesia Java")
+locations <- gsub(locations, pattern = "North North Dakota", replacement = "North Dakota")
