@@ -301,6 +301,23 @@ fungi_data <- pblapply(files, parse_fungi_html)
 fungi_names <- sapply(sapply(fungi_data, "[[", 1), "[[", 1)
 names(fungi_data) <- fungi_names
 
+locations_concat <- fungi_data %>%
+  map(., 4) %>%
+  rbindlist() %>%
+  select(location, lon, lat, hosts, date) %>%
+  arrange(location, date) %>%
+  group_by(location, date) %>%
+  add_tally() %>%
+  distinct(location, date, n, .keep_all = T)
+  
+
+
+##############
+#random stuff#
+map <- leaflet(data = geocodes) %>%
+  addTiles() %>%
+  addLabelOnlyMarkers(~lon, ~lat, label = ~as.character(location), labelOptions = labelOptions(noHide = T, direction = 'top'))
+
 #make dataframe with unique locations for lookup
 fungi_locations<-lapply(fungi_data, "[[", 4)
 locations<-lapply(fungi_locations, '[', ,1,1)
@@ -330,68 +347,9 @@ for(i in 2:test_dims[3]){
 test_geocodes_array<-array(unlist(test_geocodes_list), dim=c(dim(test_geocodes_list[[1]]), length(test_geocodes_list)), dimnames = list(1:test_dims[1], c("lon", "lat"), 1:test_dims[3]))
 test_bound_array<-abind(test_array, test_geocodes_array, along=2)
 
-#modified paste function to suppress NAs in paste
-paste5 <- function(..., sep = " ", collapse = NULL, na.rm = F) {
-  if (na.rm == F)
-    paste(..., sep = sep, collapse = collapse)
-  else
-    if (na.rm == T) {
-      paste.na <- function(x, sep) {
-        x <- gsub("^\\s+|\\s+$", "", x)
-        ret <- paste(na.omit(x), collapse = sep)
-        is.na(ret) <- ret == ""
-        return(ret)
-      }
-      df <- data.frame(..., stringsAsFactors = F)
-      ret <- apply(df, 1, FUN = function(x) paste.na(x, sep))
-      
-      if (is.null(collapse))
-        ret
-      else {
-        paste.na(ret, sep = collapse)
-      }
-    }
-}
-
-mapping_df<-data.frame(test_bound_array[,,1], stringsAsFactors = F)
-mapping_df$lon<-as.numeric(mapping_df$lon)
-mapping_df$lat<-as.numeric(mapping_df$lat)
-df_args<-c(mapping_df[,2:(ncol(mapping_df)-2)], sep=", ", na.rm=T)
-mapping_df$hosts<-do.call(paste5, df_args)
-
-mapping_df$label<-paste(sep="<br/>", paste("Location:", mapping_df$V1, sep=" "), 
-                        paste("Hosts:", mapping_df$hosts, sep=" "))
-
-
-paste(sep=", ", mapping_df[2:ncol(mapping_df)-2])
-
 map <- leaflet(data = mapping_df) %>%
   addTiles() %>%
   addMarkers(~lon, ~lat, popup=mapping_df$label)
-
-
-mapping_df$label<-paste(sep="<br/>", paste("Location:", mapping_df$V1, sep=" "), 
-                                            paste("Hosts:", mapping_df$hosts, sep=" "))
-                        
-
-##random stuff
-fungi_locations[which(grepl(fungi_locations, "Rica"))]
-
-fungi_nomenclature<-lapply(fungi_data, "[[", 1)
-fungi_nomenclature<-unlist(fungi_nomenclature)
-fungi_nomenclature<-unique(fungi_nomenclature)
-fungi_nomenclature<-data.frame(name=fungi_nomenclature)
-
-fungi_data$`Alternaria carotae`$geocodes<-data.frame(locations=fungi_data$`Alternaria carotae`$locations_hosts[,1,1], stringsAsFactors = F)
-geocodes<-fungi_data$`Alternaria carotae`$geocodes
-geocodes[]<-lapply(geocodes, gsub, pattern="USSR", replacement="Sovient Union")
-
-geocode_sf <- st_as_sf(geocodes, coords = c("lon", "lat"), crs = 4326)
-mapview(geocode_sf)
-
-map <- leaflet(data = geocodes) %>%
-  addTiles() %>%
-  addLabelOnlyMarkers(~lon, ~lat, label = ~as.character(location), labelOptions = labelOptions(noHide = T, direction = 'top'))
 
 
 

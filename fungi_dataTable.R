@@ -8,6 +8,8 @@ library(DT)
 library(shiny)
 library(data.table)
 
+setwd("D:/R projects/plant_path_meta")
+
 #read in taxonomy data
 fungi_taxonomy <- fread("fungi_taxonomy.csv")
 
