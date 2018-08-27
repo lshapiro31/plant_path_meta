@@ -1,6 +1,12 @@
 ## Fungi Data Table Test App ##
 
+library(shiny)
+library(DT)
+library(data.table)
+library(leaflet)
 library(shinythemes)
+
+fungi_for_DT <- fread("fungi_for_DT.csv")
 
 ui <- navbarPage(theme = shinytheme("flatly"),
                  title = "Example Fungi Database",

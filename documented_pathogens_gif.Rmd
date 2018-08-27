@@ -1,0 +1,77 @@
+---
+title: "Fungal Plant Pathogens Through Time"
+author: "Will Chase"
+date: "August 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, error = F)
+```
+
+Here I show the evolution of documented fungal pathogens through time. The data is from the USDA fungal plant pathogen database. The documented location of each fungal plant pathogen and date of documentation was collected into a table and used to create an animated gif that shows circles where fungal pathogens were documented and the size of the circles increases through time as more pathogens are documented at each location. 
+
+```{r}
+#load libraries
+library(data.table)
+library(purrr)
+library(plyr)
+library(dplyr)
+library(devtools)
+library(ggplot2)
+library(maps)
+library(ggthemes)
+library(purrr)
+library(data.table)
+library(tidyr)
+
+#install_github("thomasp85/gganimate")
+
+library(gganimate)
+
+###load fungi_data workspace
+load("D:/R projects/plant_path_meta/fungi_mapping_data.RData")
+
+#extract location and date information from fungi_data list
+#for each location and date calculate number of documented pathogens
+locations_concat <- fungi_data %>%
+  purrr::map(., 4) %>%
+  rbindlist() %>%
+  select(location, lon, lat, hosts, date) %>%
+  arrange(location, date) %>%
+  group_by(location, date) %>%
+  add_tally() %>%
+  distinct(location, date, n, .keep_all = T) %>%
+  ungroup() %>%
+  mutate_at(5, as.integer)
+
+#fill in location for all other dates to make animation smooth
+locations_anim_df <- locations_concat %>%
+  tidyr::expand(., date, nesting(location, lon, lat)) %>%
+  left_join(., locations_concat, by=c("location", "date")) %>%
+  select(date, location, lon.x, lat.x, n) %>%
+  replace_na(list(n=0)) %>% 
+  group_by(location) %>%
+  mutate(n_sum = cumsum(n)) %>%
+  arrange(location, date) %>%
+  select(-5) %>%
+  rename(lon = lon.x, lat = lat.x)
+```
+
+##Animation
+Now we take all the data and plot it on the world map, then animate with gganimate!
+
+```{r}
+world <- ggplot() +
+  borders("world", colour = "gray85", fill = "gray80") +
+  theme_map() + 
+  geom_point(data = locations_anim_df, aes(x = lon, y = lat, size = ifelse(n_sum==0, NA, n_sum)),
+             colour = 'purple', alpha = .5) +
+  scale_size_continuous(range = c(0.5, 6), 
+                        breaks = c(250, 500, 750, 1000)) +
+  labs(title = "Year: {frame_time}", size = 'Documented Pathogens') +
+  transition_time(date) +
+  ease_aes("linear")
+
+animate(world, nframes = 400, fps = 10, height = 604, width = 1000)
+```
