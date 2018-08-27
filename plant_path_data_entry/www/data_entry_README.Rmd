@@ -1,0 +1,8 @@
+---
+title: "Instructions for Plant Pathogen Data Entry"
+author: "Will Chase"
+date: "August 27, 2018"
+output: html_document
+---
+
+This is my test document
