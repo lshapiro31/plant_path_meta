@@ -1,35 +1,28 @@
 library(shiny)
 library(rhandsontable)
-library(aws.s3)
+library(rdrop2)
+library(rowr)
 
-s3BucketName <- "my-unique-s3-bucket-name"
-Sys.setenv("AWS_ACCESS_KEY_ID" = "key",
-           "AWS_SECRET_ACCESS_KEY" = "secret",
-           "AWS_DEFAULT_REGION" = "region")
+token <- readRDS("droptoken.rds")
+drop_acc(dtoken = token)
+
+outputDir <- "responses"
 
 saveData <- function(data) {
-  # Create a temporary file to hold the data
-  data <- t(data)
-  file_name <- paste0(
-    paste(
-      get_time_human(),
-      digest(data, algo = "md5"),
-      sep = "_"
-    ),
-    ".csv"
-  )
-  file_path <- file.path(tempdir(), file_name)
-  write.csv(data ,file_path, row.names = FALSE, quote = TRUE)
-  
-  # Upload the file to S3
-  put_object(file = file_path, object = file_name, bucket = s3BucketName)
+  # Create a unique file name
+  fileName <- sprintf("%s_%s.csv", as.integer(Sys.time()), digest::digest(data))
+  # Write the data to a temporary file locally
+  filePath <- file.path(tempdir(), fileName)
+  write.csv(data, filePath, row.names = FALSE, quote = FALSE, col.names = T)
+  # Upload the file to Dropbox
+  drop_upload(filePath, path = outputDir)
 }
 
 # which fields get saved 
-fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "hot", "double_check")
+fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate")
 
 # which fields are mandatory
-fieldsMandatory <- c("name", "double_check")
+fieldsMandatory <- c("name")
 
 # add an asterisk to an input label
 labelMandatory <- function(label) {
@@ -83,7 +76,7 @@ ui = fluidPage(
                  br(),
                  br(),
                  helpText(h4("Submission")),
-                 checkboxInput("double_check", labelMandatory("I've checked that all information is correct"), FALSE),
+                 helpText("Please double check that all info is correct before submitting"),
                  actionButton("submit", "Submit", class = "btn-primary"),
                  
                  shinyjs::hidden(
@@ -123,24 +116,16 @@ server <- function(input, output, session) {
     shinyjs::toggleState(id = "submit", condition = mandatoryFilled)
   })
   
-  # Gather all the form inputs (and add timestamp)
-  formData <- reactive({
-    data <- sapply(fieldsAll, function(x) input[[x]])
-    data <- c(data, timestamp = epochTime())
-    data <- t(data)
-    data
-  })    
-  
   #handsontable for input values#
   values = reactiveValues()
   
-  data = reactive({
+  locations_table = reactive({
     if (!is.null(input$hot)) {
       DF = hot_to_r(input$hot)
     } else {
       if (is.null(values[["DF"]]))
-        DF = data.frame(location = rep("place name", 5), date_1 = rep("YYYY", 5), host_1 = rep("host", 5),
-                        reference_1 = rep("ref", 5),
+        DF = data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
+                        references = rep("ref", 5),
                         stringsAsFactors = F)
       else
         DF = values[["DF"]]
@@ -151,11 +136,19 @@ server <- function(input, output, session) {
   })
   
   output$hot <- renderRHandsontable({
-    DF = data()
+    DF = locations_table()
     if (!is.null(DF))
       rhandsontable(DF, useTypes = F, stretchH = "all")
   })
 
+  # Gather all the form inputs (and add timestamp)
+  formData <- reactive({
+    data <- sapply(fieldsAll, function(x) input[[x]])
+    data <- c(data, timestamp = epochTime())
+    data <- cbind.fill(locations_table(), t(data))
+    data
+  })    
+  
   
   # When the Submit button is clicked, submit the response
   observeEvent(input$submit, {
