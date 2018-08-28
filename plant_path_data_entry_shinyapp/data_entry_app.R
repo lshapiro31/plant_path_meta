@@ -19,7 +19,7 @@ saveData <- function(data) {
 }
 
 # which fields get saved 
-fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate")
+fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "other")
 
 # which fields are mandatory
 fieldsMandatory <- c("name")
@@ -56,7 +56,7 @@ ui = fluidPage(
       h4("Please read",
          a(href = "data_entry_README.html",
            "these instructions", target="_blank")
-      ),
+      )),
       
       fluidRow(
         column(4,
@@ -97,6 +97,8 @@ ui = fluidPage(
                )
         ),
         column(8,
+               div(
+                 id = "form2",
                h3("Instructions for table data entry:"),
                h4("In this table enter the documented locations for the pathogen. 
                   For each documented location, please enter the associated host plant, date observed, and reference. 
@@ -106,10 +108,19 @@ ui = fluidPage(
                   Please read", a(href = "data_entry_README.html",
                                   "these instructions", target="_blank"), "for more detail on working with this table."),
                
-               rHandsontableOutput("hot", width = 1000, height = 600)
+               rHandsontableOutput("hot", width = 1000, height = 600),
+               
+               shinyjs::hidden(
+                 span(id = "submit_msg", "Submitting..."),
+                 div(id = "error",
+                     div(br(), tags$b("Error: "), span(id = "error_msg"))
         )
       )
-  ))
+    )
+  )
+  )
+  )
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -173,6 +184,8 @@ server <- function(input, output, session) {
       saveData(formData())
       shinyjs::reset("form")
       shinyjs::hide("form")
+      shinyjs::reset("form2")
+      shinyjs::hide("form2")
       shinyjs::show("thankyou_msg")
     },
     error = function(err) {
@@ -188,6 +201,7 @@ server <- function(input, output, session) {
   # submit another response
   observeEvent(input$submit_another, {
     shinyjs::show("form")
+    shinyjs::show("form2")
     shinyjs::hide("thankyou_msg")
   })
 

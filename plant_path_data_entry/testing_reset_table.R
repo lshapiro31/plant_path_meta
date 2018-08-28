@@ -19,7 +19,7 @@ saveData <- function(data) {
 }
 
 # which fields get saved 
-fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate")
+fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "other")
 
 # which fields are mandatory
 fieldsMandatory <- c("name")
@@ -56,60 +56,71 @@ ui = fluidPage(
       h4("Please read",
          a(href = "data_entry_README.html",
            "these instructions", target="_blank")
-      ),
-      
-      fluidRow(
-        column(4,
-               div(
-                 id = "form",
-                 helpText(h4("Nomenclature")),
-                 textInput("name", labelMandatory("Scientific Name"), ""),
-                 textInput("alt_name", "Comma separated alternative names(s)", ""),
-                 br(),
-                 br(),
-                 helpText(h4("Basic Data")),
-                 textInput("taxonomy", "GBIF ID (or other taxonomy database link)", ""),
-                 textInput("distribution", "Distribution (Eg. North America)", ""),
-                 textInput("disease", "Disease Type (eg. vascular wilt)", ""),
-                 textInput("host", "Common Hosts (eg. poaceae, confiers, etc.)", ""),
-                 textInput("substrate", "Common Substrates(s) (eg. infloresence)", ""),
-                 textInput("other", "Other Data", ""),
-                 br(),
-                 br(),
-                 helpText(h4("Submission")),
-                 helpText("Please double check that all info is correct before submitting"),
-                 actionButton("submit", "Submit", class = "btn-primary"),
-                 
-                 shinyjs::hidden(
-                   span(id = "submit_msg", "Submitting..."),
-                   div(id = "error",
-                       div(br(), tags$b("Error: "), span(id = "error_msg"))
-                   )
-                 )
-               ),
-               
-               shinyjs::hidden(
-                 div(
-                   id = "thankyou_msg",
-                   h3("Thanks, your response was submitted successfully!"),
-                   actionLink("submit_another", "Submit another response")
-                 )
+      )),
+  
+  fluidRow(
+    column(4,
+           div(
+             id = "form",
+             helpText(h4("Nomenclature")),
+             textInput("name", labelMandatory("Scientific Name"), ""),
+             textInput("alt_name", "Comma separated alternative names(s)", ""),
+             br(),
+             br(),
+             helpText(h4("Basic Data")),
+             textInput("taxonomy", "GBIF ID (or other taxonomy database link)", ""),
+             textInput("distribution", "Distribution (Eg. North America)", ""),
+             textInput("disease", "Disease Type (eg. vascular wilt)", ""),
+             textInput("host", "Common Hosts (eg. poaceae, confiers, etc.)", ""),
+             textInput("substrate", "Common Substrates(s) (eg. infloresence)", ""),
+             textInput("other", "Other Data", ""),
+             br(),
+             br(),
+             helpText(h4("Submission")),
+             helpText("Please double check that all info is correct before submitting"),
+             actionButton("submit", "Submit", class = "btn-primary"),
+             
+             shinyjs::hidden(
+               span(id = "submit_msg", "Submitting..."),
+               div(id = "error",
+                   div(br(), tags$b("Error: "), span(id = "error_msg"))
                )
-        ),
-        column(8,
-               h3("Instructions for table data entry:"),
-               h4("In this table enter the documented locations for the pathogen. 
-                  For each documented location, please enter the associated host plant, date observed, and reference. 
-                  If there are multiple records (different host plants or references/dates) for a location, 
-                  enter values as a", strong("semicolon"), "separated list. Please fill out host, date, and reference for each entry.
-                  If you do not know one of the values, enter 'unknown' instead of a blank value.
-                  Please read", a(href = "data_entry_README.html",
-                                  "these instructions", target="_blank"), "for more detail on working with this table."),
-               
-               rHandsontableOutput("hot", width = 1000, height = 600)
-        )
-      )
-  ))
+             )
+           ),
+           
+           shinyjs::hidden(
+             div(
+               id = "thankyou_msg",
+               h3("Thanks, your response was submitted successfully!"),
+               actionLink("submit_another", "Submit another response")
+             )
+           )
+    ),
+    column(8,
+           div(
+             id = "form2",
+             h3("Instructions for table data entry:"),
+             h4("In this table enter the documented locations for the pathogen. 
+                For each documented location, please enter the associated host plant, date observed, and reference. 
+                If there are multiple records (different host plants or references/dates) for a location, 
+                enter values as a", strong("semicolon"), "separated list. Please fill out host, date, and reference for each entry.
+                If you do not know one of the values, enter 'unknown' instead of a blank value.
+                Please read", a(href = "data_entry_README.html",
+                                "these instructions", target="_blank"), "for more detail on working with this table."),
+             
+             rHandsontableOutput("hot", width = 1000, height = 600),
+             
+             shinyjs::hidden(
+               span(id = "submit_msg", "Submitting..."),
+               div(id = "error",
+                   div(br(), tags$b("Error: "), span(id = "error_msg"))
+               )
+             )
+    )
+           )
+    )
+  )
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -127,21 +138,17 @@ server <- function(input, output, session) {
   })
   
   #handsontable for input values#
-  values = reactiveValues()
+  values = reactiveValues(DF = data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
+                                          references = rep("ref", 5),
+                                          stringsAsFactors = F))
   
   locations_table = reactive({
     if (!is.null(input$hot)) {
       DF = hot_to_r(input$hot)
     } else {
-      if (is.null(values[["DF"]]))
-        DF = data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
-                        references = rep("ref", 5),
-                        stringsAsFactors = F)
-      else
-        DF = values[["DF"]]
+        DF = values$DF
     }
-    
-    values[["DF"]] = DF
+    values$DF = DF
     DF
   })
   
@@ -150,7 +157,7 @@ server <- function(input, output, session) {
     if (!is.null(DF))
       rhandsontable(DF, useTypes = F, stretchH = "all")
   })
-
+  
   # Gather all the form inputs (and add timestamp)
   formData <- reactive({
     data <- sapply(fieldsAll, function(x) input[[x]])
@@ -173,6 +180,8 @@ server <- function(input, output, session) {
       saveData(formData())
       shinyjs::reset("form")
       shinyjs::hide("form")
+      shinyjs::reset("form2")
+      shinyjs::hide("form2")
       shinyjs::show("thankyou_msg")
     },
     error = function(err) {
@@ -188,9 +197,10 @@ server <- function(input, output, session) {
   # submit another response
   observeEvent(input$submit_another, {
     shinyjs::show("form")
+    shinyjs::show("form2")
     shinyjs::hide("thankyou_msg")
   })
-
+  
 }
 
 # Run the application 

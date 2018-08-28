@@ -4,5 +4,37 @@ author: "Will Chase"
 date: "August 27, 2018"
 output: html_document
 ---
+## General
+This data entry form was made by Will Chase to collect important data on documented locations, dates, and other data for plant pathogens. Once you fill out an entry and click submit, the data will be sent to a secure Dropbox for storage, and you will have the option to submit another response. Please read the instructions below and follow them carefully so that the data is in a consistent format and not too painful to analyze :) Thanks for your time!
 
-This is my test document
+## Instructions for nomenclature and basic data
+
+### Scientific Name
+Here enter the scientific name (Genus species) of the plant pathogen for this entry. This is a required field, so you will not be allowed to submit the entry until this is filled. Use the most 'standard' and accepted name here, and synomyns can be entered in the alternative names field.
+
+### Alternative Names
+Here you can enter any scientific name synonyms, common names, or other nomenclature data. Please enter values as a comma separated list.
+
+### GBIF ID
+Please enter the numerical code for this species from the <a href="https://www.gbif.org/" target="_blank">Global Biodiversity Information Facility.</a> The species code can be found by searching for your species and then copying the numerical code that appears at the end of the URL (ie. Erwinia tracheiphila search gives www.gbif.org/species/<b>3222009</b>). If GBIF does not contain your species or if there is a separate taxonomy database that you think is better, you can enter a link or ID with associated database name here.
+
+### Distribution
+If known, enter the general distribution (eg. Asia, American Tropics, etc.) here. If multiple, enter as comma separated values.
+
+### Disease Type
+If known, enter the general disease category (eg. root rot, powdery mildew, vascular wilt, etc.) here. If multiple, enter as comma separated values. 
+
+### Common Hosts
+If known, enter the general host category (eg. cucurbits, confiers, etc.) here. If multiple, enter as comma separated values.
+
+### Common Substrates
+If known, enter any common substrates where this pathogen is found (eg. leaves, fruits, soil, vector transmitted, etc.) If multiple, enter as comma separated values.
+
+### Other Data
+Enter any extra data or comments here.
+
+
+## Instructions for locations and dates entry
+In this table you can enter the documented locations for your plant pathogen along with the date of the record, the associated host plant, and the reference for this occurrence. Each row should correspond to a single location; please use valid place names (eg. countries, states, or cities) in the 'location' column. If you are unsure if a place name is valid, just search it verbatim on Google Maps--if it comes up where you expect, then it's correct (because I use Google Maps API for geocoding). Please enter dates as just years (do not include month or day because we don't have that data for the fungi). For host plants please use a valid scientific name, and for reference please use APA style citations or include a link to a Google Scholar reference. If there are multiple host plants, dates, or citations for a location, you can put multiple values in the 'hosts', 'dates' and 'references' columns. Please enter these values as <b>semicolon</b> separated lists, and please make the lists equal length. So for example, if you have a pathogen that was documented in Pennsylvania on two separate host plants reported in the same citation, you would enter 'Pennsylvania' '1995; 1995' 'Host1; Host2' 'Ref1; Ref1'. I know it's tedious, but this way each entry has a corresponding date, host, and reference. If you do not know one of these values, please enter 'unknown' rather than leaving the entry empty. To add more rows, you can left click on a row and choose 'Insert row below'. Please don't enter new columns :)
+
+
