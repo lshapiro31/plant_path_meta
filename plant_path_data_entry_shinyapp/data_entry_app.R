@@ -19,7 +19,7 @@ saveData <- function(data) {
 }
 
 # which fields get saved 
-fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "other")
+fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "transmission", "other")
 
 # which fields are mandatory
 fieldsMandatory <- c("name")
@@ -43,7 +43,9 @@ humanTime <- function() {
   format(Sys.time(), "%Y%m%d-%H%M%OS")
 }
 
-
+defaultDF <- data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
+                        references = rep("ref", 5),
+                        stringsAsFactors = F)
 
 
 ########APP#############
@@ -73,6 +75,7 @@ ui = fluidPage(
                  textInput("disease", "Disease Type (eg. vascular wilt)", ""),
                  textInput("host", "Common Hosts (eg. poaceae, confiers, etc.)", ""),
                  textInput("substrate", "Common Substrates(s) (eg. infloresence)", ""),
+                 testInput("transmission", "Route of Transmission", ""),
                  textInput("other", "Other Data", ""),
                  br(),
                  br(),
@@ -138,21 +141,15 @@ server <- function(input, output, session) {
   })
   
   #handsontable for input values#
-  values = reactiveValues()
+  values = reactiveValues(DF = defaultDF)
   
   locations_table = reactive({
     if (!is.null(input$hot)) {
       DF = hot_to_r(input$hot)
     } else {
-      if (is.null(values[["DF"]]))
-        DF = data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
-                        references = rep("ref", 5),
-                        stringsAsFactors = F)
-      else
-        DF = values[["DF"]]
+      DF = values$DF
     }
-    
-    values[["DF"]] = DF
+    values$DF = DF
     DF
   })
   
@@ -203,8 +200,12 @@ server <- function(input, output, session) {
     shinyjs::show("form")
     shinyjs::show("form2")
     shinyjs::hide("thankyou_msg")
+    output$hot <- renderRHandsontable({
+      values$DF  = defaultDF
+      rhandsontable(values$DF, useTypes = F, stretchH = "all")
+    })
   })
-
+  
 }
 
 # Run the application 
