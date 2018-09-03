@@ -16,7 +16,7 @@ Here enter the scientific name (Genus species) of the plant pathogen for this en
 Here you can enter any scientific name synonyms, common names, or other nomenclature data. Please enter values as a comma separated list.
 
 ### GBIF ID
-Please enter the numerical code for this species from the <a href="https://www.gbif.org/" target="_blank">Global Biodiversity Information Facility.</a> The species code can be found by searching for your species and then copying the numerical code that appears at the end of the URL (ie. Erwinia tracheiphila search gives www.gbif.org/species/<b>3222009</b>). If GBIF does not contain your species or if there is a separate taxonomy database that you think is better, you can enter a link or ID with associated database name here.
+Please enter the numerical code for this species from the <a href="https://www.gbif.org/" target="_blank">Global Biodiversity Information Facility.</a> The species code can be found by searching for your species and then copying the numerical code that appears at the end of the URL (ie. Erwinia tracheiphila search gives www.gbif.org/species/<b>3222009</b>). Please note: If you entered a valid genus and species name, this field is **not required**. Furthermore, if GBIF does not contain your species or if there is a separate taxonomy database that you think is better, you can enter a link or ID with associated database name here.
 
 ### Distribution
 If known, enter the general distribution (eg. Asia, American Tropics, etc.) here. If multiple, enter as comma separated values.
@@ -29,6 +29,9 @@ If known, enter the general host category (eg. cucurbits, confiers, etc.) here. 
 
 ### Common Substrates
 If known, enter any common substrates where this pathogen is found (eg. leaves, fruits, soil, vector transmitted, etc.) If multiple, enter as comma separated values.
+
+### Route of Transmission
+If known, enter the route of transmission for this pathogen (eg. soil, insect, etc.). 
 
 ### Other Data
 Enter any extra data or comments here.
