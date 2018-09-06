@@ -131,10 +131,10 @@ $(document).ready(function () {
 
 <div id="general" class="section level2">
 <h2>General</h2>
-<p>This data entry form was made by Will Chase to collect important data on documented locations, dates, and other data for plant pathogens. Once you fill out an entry and click submit, the data will be sent to a secure Dropbox for storage, and you will have the option to submit another response. Please read the instructions below and follow them carefully so that the data is in a consistent format and not too painful to analyze :) Thanks for your time!</p>
+<p>This data entry form was made by Will Chase to collect important data on documented locations, dates, and other data for plant pathogens. Once you fill out an entry and click submit, the data will be sent to a secure Dropbox for storage, and you will have the option to submit another response. Please read the instructions below and follow them carefully so that the data is in a consistent format and not too painful to analyze :) Thanks!</p>
 </div>
-<div id="instructions-for-nomenclature-and-basic-data" class="section level2">
-<h2>Instructions for nomenclature and basic data</h2>
+<div id="instructions-for-nomenclature-basic-data-and-transmission" class="section level2">
+<h2>Instructions for nomenclature, basic data, and transmission</h2>
 <div id="scientific-name" class="section level3">
 <h3>Scientific Name</h3>
 <p>Here enter the scientific name (Genus species) of the plant pathogen for this entry. This is a required field, so you will not be allowed to submit the entry until this is filled. Use the most ‘standard’ and accepted name here, and synomyns can be entered in the alternative names field.</p>
@@ -159,21 +159,30 @@ $(document).ready(function () {
 <h3>Common Hosts</h3>
 <p>If known, enter the general host category (eg. cucurbits, confiers, etc.) here. If multiple, enter as comma separated values.</p>
 </div>
-<div id="common-substrates" class="section level3">
-<h3>Common Substrates</h3>
-<p>If known, enter any common substrates where this pathogen is found (eg. leaves, fruits, soil, vector transmitted, etc.) If multiple, enter as comma separated values.</p>
+<div id="site-of-entry-into-plant" class="section level3">
+<h3>Site of entry into plant</h3>
+<p>If known, enter any common substrates on the plant that this pathogen occupies and enters the plant (eg. leaves, fruits, roots, etc.) If multiple, enter as comma separated values.</p>
 </div>
-<div id="route-of-transmission" class="section level3">
-<h3>Route of Transmission</h3>
-<p>If known, enter the route of transmission for this pathogen (eg. soil, insect, etc.).</p>
+<div id="environmental-reservoir" class="section level3">
+<h3>Environmental Reservoir</h3>
+<p>If known, enter environmental reservoirs of this pathogen.</p>
+</div>
+<div id="year-first-named-or-described" class="section level3">
+<h3>Year First Named or Described</h3>
+<p>List the earliest year that this pathogen was described or named (this information might be found in GBIF).</p>
 </div>
 <div id="other-data" class="section level3">
 <h3>Other Data</h3>
 <p>Enter any extra data or comments here.</p>
 </div>
+<div id="transmission" class="section level3">
+<h3>Transmission</h3>
+<p>Check all boxes that apply for route of transmission, if unknown, check the box “Other or Unknown”.</p>
+</div>
 </div>
 <div id="instructions-for-locations-and-dates-entry" class="section level2">
 <h2>Instructions for locations and dates entry</h2>
+<p><strong>Note this table is not required if it is too cumbersome to enter all these values, we can try to scrape some of this data from other sources or update at a future time</strong></p>
 <p>In this table you can enter the documented locations for your plant pathogen along with the date of the record, the associated host plant, and the reference for this occurrence. Each row should correspond to a single location; please use valid place names (eg. countries, states, or cities) in the ‘location’ column. If you are unsure if a place name is valid, just search it verbatim on Google Maps–if it comes up where you expect, then it’s correct (because I use Google Maps API for geocoding). Please enter dates as just years (do not include month or day because we don’t have that data for the fungi). For host plants please use a valid scientific name, and for reference please use APA style citations or include a link to a Google Scholar reference. If there are multiple host plants, dates, or citations for a location, you can put multiple values in the ‘hosts’, ‘dates’ and ‘references’ columns. Please enter these values as <b>semicolon</b> separated lists, and please make the lists equal length. So for example, if you have a pathogen that was documented in Pennsylvania on two separate host plants reported in the same citation, you would enter ‘Pennsylvania’ ‘1995; 1995’ ‘Host1; Host2’ ‘Ref1; Ref1’. I know it’s tedious, but this way each entry has a corresponding date, host, and reference. If you do not know one of these values, please enter ‘unknown’ rather than leaving the entry empty. To add more rows, you can left click on a row and choose ‘Insert row below’. Please don’t enter new columns :)</p>
 </div>
 

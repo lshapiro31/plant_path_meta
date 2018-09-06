@@ -11,16 +11,16 @@ outputDir <- "responses"
 
 saveData <- function(data) {
   # Create a unique file name
-  fileName <- sprintf("%s_%s.csv", as.integer(Sys.time()), digest::digest(data))
+  fileName <- sprintf("%s_%s.tsv", as.integer(Sys.time()), digest::digest(data))
   # Write the data to a temporary file locally
   filePath <- file.path(tempdir(), fileName)
-  write.csv(data, filePath, row.names = FALSE, quote = FALSE, col.names = T)
+  write.table(data, filePath, row.names = FALSE, quote = FALSE, sep = "\t")
   # Upload the file to Dropbox
   drop_upload(filePath, path = outputDir)
 }
 
 # which fields get saved 
-fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "transmission", "reservoir", "other")
+fieldsAll <- c("name", "alt_name", "taxonomy", "distribution", "disease", "host", "substrate", "reservoir", "first_date", "other")
 
 # which fields are mandatory
 fieldsMandatory <- c("name")
@@ -44,8 +44,8 @@ humanTime <- function() {
   format(Sys.time(), "%Y%m%d-%H%M%OS")
 }
 
-defaultDF <- data.frame(location = rep("place name", 5), dates = rep("YYYY", 5), hosts = rep("host", 5),
-                        references = rep("ref", 5),
+defaultDF <- data.frame(location = rep("place name", 3), dates = rep("YYYY", 3), hosts = rep("host", 3),
+                        references = rep("ref", 3),
                         stringsAsFactors = F)
 
 
@@ -53,7 +53,7 @@ defaultDF <- data.frame(location = rep("place name", 5), dates = rep("YYYY", 5),
 ui = dashboardPage(
   #shinyjs::inlineCSS(appCSS),
   
-  dashboardHeader(title = "Data Entry For Plant Pathogens"
+  dashboardHeader(title = "Data Entry For Plant Pathogens", titleWidth = 350
                     ),
   
   dashboardSidebar(disable = T),
@@ -108,7 +108,9 @@ ui = dashboardPage(
                                                   "Seed (vertical)" = "seed", 
                                                   "Obligate Insect" = "oblig_insect",
                                                   "Facultative Insect" = "fac_insect",
-                                                  "Mechanical" = "mechanical"))
+                                                  "Mechanical" = "mechanical",
+                                                  "Other or Unknown" = "unknown"
+                                                  ))
             ), 
             
             box(title = "Submission", width = NULL, color = "maroon", solidHeader = T,
@@ -125,6 +127,7 @@ ui = dashboardPage(
                 textInput("host", "Common Hosts (eg. poaceae)", ""),
                 textInput("substrate", "Site of Entry into Plant", ""),
                 textInput("reservoir", "Environmental Reservoirs", ""),
+                textInput("first_date", "Year First Named or Described", ""),
                 textInput("other", "Other Data", "")
               ),
               
@@ -137,10 +140,6 @@ ui = dashboardPage(
                 Please read", a(href = "data_entry_README.html",
                                 "these instructions", target="_blank"), "for more detail on working with this table."),
                   rHandsontableOutput("hot", width = 1000)
-              ),
-              
-              box(title = "output", width = NULL, status = "success", solidHeader = T,
-                  tableOutput("table")
               )
           )
       )
@@ -187,19 +186,12 @@ server <- function(input, output, session) {
   formData <- reactive({
     data <- sapply(fieldsAll, function(x) input[[x]])
     data <- c(data, timestamp = epochTime())
-    data <- cbind.fill(locations_table(), t(data))
+    data2 <- data.frame(transmission = paste(input$transmission, collapse = ","))
+    data <- cbind.fill(locations_table(), t(data), data2, fill = NA)
     data
   })    
   
-  formData2 <- reactive({
-    data2 <- input$transmission
-    data3 <- paste(data2, collapse = ",")
-    data3
-  })
-  
-  output$table <- renderTable({
-    formData2()
-  })
+ 
   
   # When the Submit button is clicked, submit the response
   observeEvent(input$submit, {

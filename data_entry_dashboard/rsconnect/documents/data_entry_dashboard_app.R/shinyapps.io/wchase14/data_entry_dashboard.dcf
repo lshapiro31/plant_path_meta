@@ -1,0 +1,12 @@
+name: data_entry_dashboard
+title: data_entry_dashboard
+username:
+account: wchase14
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 423121
+bundleId: 1571872
+url: https://wchase14.shinyapps.io/data_entry_dashboard/
+when: 1536206613.16357
+asMultiple: FALSE
+asStatic: FALSE
